@@ -1,3 +1,5 @@
+use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+
 use super::nodes::{HasNeighbors, Layer};
 use crate::hnsw::nodes::{NeighborNodes, Node};
 use crate::*;
@@ -174,7 +176,7 @@ where
             return 0;
         }
 
-        self.initialize_searcher(&q, searcher);
+        self.initialize_searcher(&q, searcher, self.zero.len() + 1);
 
         // Find the entry point on the level it was created by searching normally until its level.
         for ix in (level..self.layers.len()).rev() {
@@ -299,7 +301,7 @@ where
             return &mut [];
         }
 
-        self.initialize_searcher(q, searcher);
+        self.initialize_searcher(q, searcher, self.zero.len());
         let cap = 1;
 
         for (ix, layer) in self.layers.iter().enumerate().rev() {
@@ -340,11 +342,17 @@ where
                     Layer::NonZero(layer) => layer[neighbor as usize].zero_node,
                     Layer::Zero => neighbor,
                 };
+                unsafe {
+                    _mm_prefetch(
+                        &self.features[node_to_visit as usize] as *const _ as *const i8,
+                        _MM_HINT_T0,
+                    )
+                };
 
                 // Don't visit previously visited things. We use the zero node to allow reusing the seen filter
                 // across all layers since zero nodes are consistent among all layers.
                 // TODO: Use Cuckoo Filter or Bloom Filter to speed this up/take less memory.
-                if searcher.seen.insert(node_to_visit) {
+                if !searcher.see(node_to_visit) {
                     // Compute the distance of this neighbor.
                     let distance = self
                         .metric
@@ -388,7 +396,7 @@ where
             index: new_index,
             distance,
         };
-        searcher.seen.insert(layer[index].zero_node);
+        searcher.see(layer[index].zero_node);
         // Insert the index of the nearest neighbor into the nearest pool for the next layer.
         // Insert the index into the candidate pool as well.
         searcher.push(candidate);
@@ -396,9 +404,9 @@ where
 
     /// Resets a searcher, but does not set the `cap` on the nearest neighbors.
     /// Must be passed the query element `q`.
-    fn initialize_searcher(&self, q: &T, searcher: &mut Searcher<Met::Unit>) {
+    fn initialize_searcher(&self, q: &T, searcher: &mut Searcher<Met::Unit>, num_vectors: usize) {
         // Clear the searcher.
-        searcher.clear();
+        searcher.init_num_vectors(num_vectors);
         // Add the entry point.
         let entry_distance = self.metric.distance(q, self.entry_feature());
         let candidate = Neighbor {
@@ -406,7 +414,7 @@ where
             distance: entry_distance,
         };
         searcher.push(candidate);
-        searcher.seen.insert(
+        searcher.see(
             self.layers
                 .last()
                 .map(|layer| layer[0].zero_node)

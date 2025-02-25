@@ -6,9 +6,8 @@ use std::cmp::Ordering;
 
 pub use self::hnsw::*;
 
-use ahash::RandomState;
 use alloc::{vec, vec::Vec};
-use hashbrown::HashSet;
+use bitvec::prelude::*;
 use hnsw::min_max_heap::MinMaxHeap;
 use num_traits::Unsigned;
 use space::Neighbor;
@@ -55,7 +54,8 @@ pub struct Searcher<Metric: Ord + Unsigned + Copy> {
     /// The candidates that have been found so far.
     candidates: Vec<Neighbor<Metric>>,
     nearest: MinMaxHeap<NbrNode<Metric>>,
-    seen: HashSet<usize, RandomState>,
+    seen: BitVec,
+    num_vectors: usize,
 }
 
 impl<Metric: Ord + Unsigned + Copy> Searcher<Metric> {
@@ -67,14 +67,21 @@ impl<Metric: Ord + Unsigned + Copy> Searcher<Metric> {
         Self {
             candidates: Vec::with_capacity(capacity),
             nearest: MinMaxHeap::with_capacity(capacity),
-            seen: HashSet::with_capacity_and_hasher(capacity, RandomState::with_seeds(0, 0, 0, 0)),
+            seen: BitVec::with_capacity(capacity),
+            num_vectors: 0,
         }
+    }
+
+    pub fn init_num_vectors(&mut self, num_vectors: usize) {
+        self.num_vectors = num_vectors;
+        self.clear();
     }
 
     fn clear(&mut self) {
         self.candidates.clear();
         self.nearest.clear();
         self.seen.clear();
+        self.seen.resize(self.num_vectors, false);
     }
 
     pub fn get_top_k_nearest(&mut self, k: usize) -> Vec<Neighbor<Metric>> {
@@ -95,6 +102,10 @@ impl<Metric: Ord + Unsigned + Copy> Searcher<Metric> {
 
     pub fn peek_min(&self) -> Option<&Neighbor<Metric>> {
         self.nearest.peek_min().map(|v| &v.nbr)
+    }
+
+    pub fn see(&mut self, index: usize) -> bool {
+        self.seen.replace(index, true)
     }
 
     pub fn push(&mut self, nbr: Neighbor<Metric>) {
@@ -137,7 +148,8 @@ impl<Metric: Ord + Unsigned + Copy> Default for Searcher<Metric> {
         Self {
             candidates: vec![],
             nearest: MinMaxHeap::new(),
-            seen: HashSet::with_hasher(RandomState::with_seeds(0, 0, 0, 0)),
+            seen: BitVec::new(),
+            num_vectors: 0,
         }
     }
 }
