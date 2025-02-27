@@ -17,10 +17,13 @@ fn linear_1_nn() {
     let mut searcher = Searcher::default();
     let searcher = &mut searcher;
     let mut hnsw: Hnsw<Hamming, BitArray<16>, Pcg64, 12, 24> = Hnsw::default();
-    let mut output = [Neighbor {
-        index: !0,
-        distance: !0,
-    }; 1];
+    let mut output = vec![
+        Neighbor {
+            index: !0,
+            distance: !0,
+        };
+        1
+    ];
 
     let prng = Pcg64::from_seed([5; 32]);
     let mut rngiter = prng.sample_iter(&Standard).map(BitArray::new);
@@ -64,10 +67,13 @@ fn linear_1_nn_inliers() {
     let mut searcher = Searcher::default();
     let searcher = &mut searcher;
     let mut hnsw: Hnsw<Hamming, BitArray<16>, Pcg64, 12, 24> = Hnsw::default();
-    let mut output = [Neighbor {
-        index: !0,
-        distance: !0,
-    }; 1];
+    let mut output = vec![
+        Neighbor {
+            index: !0,
+            distance: !0,
+        };
+        1
+    ];
 
     const BIT_DIFF_PROBABILITY_OF_INLIER: f64 = 0.0859;
 

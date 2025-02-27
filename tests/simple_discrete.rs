@@ -37,10 +37,13 @@ fn insertion_discrete() {
 #[test]
 fn nearest_neighbor_discrete() {
     let (hnsw, mut searcher) = test_hnsw_discrete();
-    let mut neighbors = [Neighbor {
-        index: !0,
-        distance: !0,
-    }; 8];
+    let mut neighbors = vec![
+        Neighbor {
+            index: !0,
+            distance: !0,
+        };
+        8
+    ];
 
     hnsw.nearest(&0b0001, 24, &mut searcher, &mut neighbors);
     // Distance 1

@@ -229,7 +229,7 @@ where
         q: &T,
         ef: usize,
         searcher: &mut Searcher<Met::Unit>,
-        dest: &'a mut [Neighbor<Met::Unit>],
+        dest: &'a mut Vec<Neighbor<Met::Unit>>,
     ) -> &'a mut [Neighbor<Met::Unit>] {
         self.search_layer(q, ef, 0, searcher, dest)
     }
@@ -292,7 +292,7 @@ where
         ef: usize,
         level: usize,
         searcher: &mut Searcher<Met::Unit>,
-        dest: &'a mut [Neighbor<Met::Unit>],
+        dest: &'a mut Vec<Neighbor<Met::Unit>>,
     ) -> &'a mut [Neighbor<Met::Unit>] {
         // If there is nothing in here, then just return nothing.
         if self.features.is_empty() || level >= self.layers() {
@@ -318,7 +318,10 @@ where
         self.search_zero_layer(q, searcher, cap);
 
         let found = core::cmp::min(dest.len(), searcher.nearest.len());
-        dest.copy_from_slice(&searcher.nearest[..found]);
+        *dest = searcher.nearest[..found]
+            .iter()
+            .map(|n| n.clone())
+            .collect();
         &mut dest[..found]
     }
 
