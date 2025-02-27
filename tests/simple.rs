@@ -7,9 +7,9 @@ use space::{Metric, Neighbor};
 
 struct Euclidean;
 
-impl Metric<&[f64]> for Euclidean {
+impl Metric<Vec<f64>> for Euclidean {
     type Unit = u64;
-    fn distance(&self, a: &&[f64], b: &&[f64]) -> u64 {
+    fn distance(&self, a: &Vec<f64>, b: &Vec<f64>) -> u64 {
         a.iter()
             .zip(b.iter())
             .map(|(&a, &b)| (a - b).powi(2))
@@ -34,12 +34,12 @@ impl TestBruteForceHelper {
         self.vectors.push(v);
     }
 
-    fn search(&self, query: &[f64], top_k: usize) -> Vec<usize> {
+    fn search(&self, query: &Vec<f64>, top_k: usize) -> Vec<usize> {
         let metric = Euclidean;
         let mut candidates: Vec<(usize, u64)> = self
             .vectors
             .iter()
-            .map(|v| (v.0.clone(), metric.distance(&query, &v.1.as_slice())))
+            .map(|v| (v.0.clone(), metric.distance(&query, &v.1)))
             .collect_vec();
 
         candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -49,14 +49,14 @@ impl TestBruteForceHelper {
 }
 
 fn test_hnsw() -> (
-    Hnsw<Euclidean, &'static [f64], Pcg64, 12, 24>,
+    Hnsw<Euclidean, Vec<f64>, Pcg64, 12, 24>,
     Searcher<u64>,
     TestBruteForceHelper,
 ) {
     let mut searcher = Searcher::default();
     let mut hnsw = Hnsw::new(Euclidean);
     let mut helper = TestBruteForceHelper::new();
-    let features = [
+    let features = vec![
         &[0.0, 0.0, 0.0, 1.0],
         &[0.0, 0.0, 1.0, 0.0],
         &[0.0, 1.0, 0.0, 0.0],
@@ -69,7 +69,7 @@ fn test_hnsw() -> (
 
     for (index, feature) in features.iter().enumerate() {
         helper.push((index, feature.to_vec()));
-        hnsw.insert(*feature, &mut searcher);
+        hnsw.insert(feature.to_vec(), &mut searcher);
     }
 
     (hnsw, searcher, helper)
@@ -84,12 +84,15 @@ fn insertion() {
 fn nearest_neighbor() {
     let (hnsw, mut searcher, helper) = test_hnsw();
     let searcher = &mut searcher;
-    let mut neighbors = [Neighbor {
-        index: !0,
-        distance: !0,
-    }; 8];
+    let mut neighbors = vec![
+        Neighbor {
+            index: !0,
+            distance: !0,
+        };
+        8
+    ];
 
-    hnsw.nearest(&&[0.0, 0.0, 0.0, 1.0][..], 24, searcher, &mut neighbors);
+    hnsw.nearest(&vec![0.0, 0.0, 0.0, 1.0], 24, searcher, &mut neighbors);
     // Distance 1
     neighbors[1..3].sort_unstable();
     // Distance 2
@@ -142,8 +145,32 @@ fn nearest_neighbor() {
             };
             topk
         ];
-        hnsw.nearest(&&[0.0, 0.0, 0.0, 1.0][..], 24, searcher, &mut neighbors);
+        hnsw.nearest(&vec![0.0, 0.0, 0.0, 1.0], 24, searcher, &mut neighbors);
         let result = neighbors.iter().map(|item| item.index).collect_vec();
-        assert_eq!(result, helper.search(&[0.0, 0.0, 0.0, 1.0], topk));
+        assert_eq!(result, helper.search(&vec![0.0, 0.0, 0.0, 1.0], topk));
+    }
+
+    let mut searcher = Searcher::default();
+    let mut hnsw: Hnsw<Euclidean, Vec<f64>, Pcg64, 12, 24> = Hnsw::new(Euclidean);
+    for all_vec in 2..300 {
+        hnsw.insert(
+            vec![0.0, 1_f64 / all_vec as f64, 0.0, 1_f64 / all_vec as f64],
+            &mut searcher,
+        );
+        for topk in 1..all_vec {
+            let mut neighbors = vec![
+                Neighbor {
+                    index: !0,
+                    distance: !0,
+                };
+                topk
+            ];
+            hnsw.nearest(
+                &vec![0.0, 0.0, 0.0, 1.0],
+                topk,
+                &mut searcher,
+                &mut neighbors,
+            );
+        }
     }
 }
